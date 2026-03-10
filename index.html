@@ -1186,15 +1186,22 @@ function renderComposer(leadId) {
       <div class="email-body-editor" id="email-body" contenteditable="true" style="min-height:260px"></div>
     </div>
 
+    ${!state.gmailToken ? `<div style="background:rgba(139,26,42,0.12);border:1px solid var(--maroon-dark);border-radius:8px;padding:10px 14px;font-size:12.5px;color:var(--text-2);margin-bottom:4px">
+      <strong style="color:var(--text)">Gmail not connected</strong> — Generate your email below, then copy it or open in your email app to send.
+    </div>` : ''}
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn btn-success" onclick="sendEmailViaGmail('${leadId}')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-        Send via Gmail
-      </button>
-      <button class="btn btn-secondary" onclick="copyEmailToClipboard()">
+      <button class="btn btn-primary" onclick="copyEmailToClipboard()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         Copy to Clipboard
       </button>
+      <button class="btn btn-secondary" onclick="openInEmailApp('${leadId}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        Open in Email App
+      </button>
+      ${state.gmailToken ? `<button class="btn btn-success" onclick="sendEmailViaGmail('${leadId}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        Send via Gmail
+      </button>` : ''}
       <button class="btn btn-ghost" onclick="openLeadModal('${leadId}')">View Lead</button>
     </div>
     ${sentHtml}
@@ -1360,7 +1367,15 @@ function copyEmailToClipboard() {
   const subject = document.getElementById('email-subject')?.value || '';
   const body = document.getElementById('email-body')?.innerText || '';
   const text = `Subject: ${subject}\n\n${body}`;
-  navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!', 'success')).catch(() => showToast('Copy failed', 'error'));
+  navigator.clipboard.writeText(text).then(() => showToast('Copied! Paste into your email app to send.', 'success')).catch(() => showToast('Copy failed', 'error'));
+}
+
+function openInEmailApp(leadId) {
+  const l = state.leads.find(x => x.id === leadId);
+  const subject = encodeURIComponent(document.getElementById('email-subject')?.value || '');
+  const body = encodeURIComponent(document.getElementById('email-body')?.innerText || '');
+  const to = l?.email ? encodeURIComponent(l.email) : '';
+  window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
 }
 
 // ============================================================
