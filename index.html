@@ -1163,36 +1163,52 @@ function renderComposer(leadId) {
       </div>
     </div>
 
-    <div style="display:flex;gap:10px;align-items:flex-end">
-      <div class="form-group" style="flex:1;margin-bottom:0">
-        <label class="form-label">Campaign Type</label>
+    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+      <div class="form-group" style="flex:1;min-width:140px;margin-bottom:0">
+        <label class="form-label">Campaign</label>
         <select class="form-select" id="campaign-type">
           ${campaigns.map(c => `<option value="${c}">${c}</option>`).join('')}
         </select>
       </div>
-      <button class="btn btn-primary" id="gen-email-btn" onclick="generateEmail('${leadId}')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-        Generate with AI
-      </button>
+      <div class="form-group" style="flex:1;min-width:140px;margin-bottom:0">
+        <label class="form-label">Tone</label>
+        <select class="form-select" id="email-tone">
+          <option value="Professional">Professional</option>
+          <option value="Friendly">Friendly</option>
+          <option value="Conversational">Conversational</option>
+          <option value="Direct">Direct &amp; Concise</option>
+          <option value="Persuasive">Persuasive</option>
+          <option value="Bold">Bold &amp; Confident</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="gen-email-btn" onclick="generateEmail('${leadId}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Generate
+        </button>
+        <button class="btn btn-secondary" id="regen-email-btn" onclick="generateEmail('${leadId}')" title="Regenerate with current settings" style="padding:0 12px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+      </div>
     </div>
 
     <div class="form-group">
       <label class="form-label">Subject</label>
-      <input class="form-input" id="email-subject" placeholder="Email subject..." value="" />
+      <input class="form-input" id="email-subject" placeholder="Generate an email to populate the subject..." value="" />
     </div>
 
     <div class="form-group" style="flex:1">
-      <label class="form-label">Email Body</label>
-      <div class="email-body-editor" id="email-body" contenteditable="true" style="min-height:260px"></div>
+      <label class="form-label" style="display:flex;justify-content:space-between">
+        <span>Email Body</span>
+        <span id="copy-confirm" style="color:#1A7A3A;font-size:11px;font-weight:600;opacity:0;transition:opacity 0.3s"></span>
+      </label>
+      <div class="email-body-editor" id="email-body" contenteditable="true" style="min-height:280px"></div>
     </div>
 
-    ${!state.gmailToken ? `<div style="background:rgba(139,26,42,0.12);border:1px solid var(--maroon-dark);border-radius:8px;padding:10px 14px;font-size:12.5px;color:var(--text-2);margin-bottom:4px">
-      <strong style="color:var(--text)">Gmail not connected</strong> — Generate your email below, then copy it or open in your email app to send.
-    </div>` : ''}
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-primary" onclick="copyEmailToClipboard()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        Copy to Clipboard
+        Copy Email
       </button>
       <button class="btn btn-secondary" onclick="openInEmailApp('${leadId}')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
@@ -1247,6 +1263,7 @@ async function generateEmail(leadId) {
   const l = state.leads.find(x => x.id === leadId);
   if (!l) return;
   const campaign = document.getElementById('campaign-type')?.value || 'Initial Outreach';
+  const tone = document.getElementById('email-tone')?.value || 'Professional';
   const s = state.settings;
   const userName = s.full_name || 'Your Name';
   const userTitle = s.title || 'Insurance Agent';
@@ -1255,7 +1272,9 @@ async function generateEmail(leadId) {
   const insuranceTypes = Array.isArray(l.insurance_types) ? l.insurance_types.join(', ') : '';
 
   const btn = document.getElementById('gen-email-btn');
+  const regenBtn = document.getElementById('regen-email-btn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Generating...'; }
+  if (regenBtn) regenBtn.disabled = true;
 
   try {
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -1272,7 +1291,7 @@ async function generateEmail(leadId) {
         system: 'You are an expert insurance sales copywriter. Return ONLY valid JSON with keys: subject (string) and body (HTML string). No markdown, no extra explanation.',
         messages: [{
           role: 'user',
-          content: `Write a ${campaign} email for:
+          content: `Write a ${campaign} email in a ${tone} tone for:
 Business: ${l.business_name}
 Business Type: ${l.business_type}
 Owner: ${l.owner_name}
@@ -1287,13 +1306,16 @@ Company: ${userCompany}
 ${calendly ? `Calendly: ${calendly}` : ''}
 
 Instructions:
+- Tone must be ${tone} throughout — adjust language, greeting, and closing accordingly
 - Address owner by first name
-- Reference the business type and specific insurance needs for a ${l.business_type}
-- Mention they are a newly formed business (formed ${l.formed_date})
-- Keep it concise, professional, personalized
+- Reference the specific insurance needs for a ${l.business_type} business
+- Mention they are a newly formed business (congratulate them briefly)
+- Keep it concise and personalized — no fluff
 - ${campaign === 'Meeting Request' ? 'Specifically ask for a 15-minute call' : ''}
-- ${calendly ? `Include the Calendly link: ${calendly}` : ''}
-- Return JSON: {"subject":"...","body":"<p>...</p>"}`
+- ${campaign === 'Follow-up 1' ? 'Reference that this is a follow-up to a previous outreach' : ''}
+- ${campaign === 'Follow-up 2' ? 'Reference that this is a second follow-up, create mild urgency' : ''}
+- ${calendly ? `Include the Calendly scheduling link: ${calendly}` : ''}
+- Return ONLY JSON: {"subject":"...","body":"<p>...</p>"}`
         }]
       })
     });
@@ -1308,12 +1330,13 @@ Instructions:
     const bodyEl = document.getElementById('email-body');
     if (subjEl) subjEl.value = result.subject || '';
     if (bodyEl) bodyEl.innerHTML = result.body || '';
-    showToast('Email generated!', 'success');
+    showToast('Email generated! Adjust the tone or campaign and regenerate anytime.', 'success');
 
   } catch(err) {
     showToast('Generation failed: ' + err.message, 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generate with AI'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generate'; }
+    if (regenBtn) regenBtn.disabled = false;
   }
 }
 
@@ -1366,8 +1389,13 @@ async function sendGmail(to, subject, htmlBody) {
 function copyEmailToClipboard() {
   const subject = document.getElementById('email-subject')?.value || '';
   const body = document.getElementById('email-body')?.innerText || '';
+  if (!subject && !body) { showToast('Generate an email first.', 'error'); return; }
   const text = `Subject: ${subject}\n\n${body}`;
-  navigator.clipboard.writeText(text).then(() => showToast('Copied! Paste into your email app to send.', 'success')).catch(() => showToast('Copy failed', 'error'));
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Copied! Paste into your email app to send.', 'success');
+    const confirm = document.getElementById('copy-confirm');
+    if (confirm) { confirm.textContent = '✓ Copied to clipboard'; confirm.style.opacity = '1'; setTimeout(() => confirm.style.opacity = '0', 2500); }
+  }).catch(() => showToast('Copy failed — try selecting the text manually.', 'error'));
 }
 
 function openInEmailApp(leadId) {
