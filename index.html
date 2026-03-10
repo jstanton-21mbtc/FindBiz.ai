@@ -1181,7 +1181,11 @@ function renderComposer(leadId) {
           <option value="Bold">Bold &amp; Confident</option>
         </select>
       </div>
-      <div style="display:flex;gap:8px">
+      <div class="form-group" style="flex:2;min-width:220px;margin-bottom:0">
+        <label class="form-label">Context / Reason for Outreach <span style="color:var(--text-2);font-weight:400">(optional)</span></label>
+        <textarea class="form-input" id="outreach-context" rows="2" placeholder="e.g. This is a friend of mine, just letting him know his auto renewal is approaching…" style="resize:vertical;min-height:42px;font-size:13px"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;align-self:flex-end">
         <button class="btn btn-primary" id="gen-email-btn" onclick="generateEmail('${leadId}')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           Generate
@@ -1264,6 +1268,7 @@ async function generateEmail(leadId) {
   if (!l) return;
   const campaign = document.getElementById('campaign-type')?.value || 'Initial Outreach';
   const tone = document.getElementById('email-tone')?.value || 'Professional';
+  const context = document.getElementById('outreach-context')?.value?.trim() || '';
   const s = state.settings;
   const userName = s.full_name || 'Your Name';
   const userTitle = s.title || 'Insurance Agent';
@@ -1307,6 +1312,7 @@ ${calendly ? `Calendly: ${calendly}` : ''}
 
 Instructions:
 - Tone must be ${tone} throughout — adjust language, greeting, and closing accordingly
+${context ? `- Special context / reason for this outreach (very important — shape the email around this): "${context}"` : ''}
 - Address owner by first name
 - Reference the specific insurance needs for a ${l.business_type} business
 - Mention they are a newly formed business (congratulate them briefly)
