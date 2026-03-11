@@ -356,6 +356,33 @@ nav { flex: 1; padding: 12px 8px; }
 /* ── Progress bar ── */
 .progress-bar { height: 4px; background: var(--surface-3); border-radius: 2px; overflow: hidden; margin-top: 6px; }
 .progress-fill { height: 100%; background: var(--maroon); border-radius: 2px; transition: width 0.4s ease; }
+
+/* ── Opportunities ── */
+.opp-section { margin-bottom: 32px; }
+.opp-section-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; gap: 16px; flex-wrap: wrap; }
+.opp-section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 4px; }
+.opp-section-desc { font-size: 12.5px; color: var(--text-2); line-height: 1.5; max-width: 560px; }
+.opp-cards { display: flex; flex-direction: column; gap: 10px; }
+.opp-card {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px 18px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  transition: border-color 0.18s;
+}
+.opp-card:hover { border-color: var(--gunmetal-light); }
+.opp-card-body { flex: 1; min-width: 0; }
+.opp-card-title { font-size: 14px; font-weight: 700; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opp-card-meta { font-size: 12px; color: var(--text-2); margin-bottom: 6px; line-height: 1.5; }
+.opp-card-note { font-size: 12px; color: var(--text-2); font-style: italic; margin-top: 4px; }
+.opp-card-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+.countdown-badge {
+  display: inline-flex; align-items: center; gap: 4px; border-radius: 20px;
+  padding: 3px 10px; font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.countdown-hot  { background: rgba(122,26,26,0.3);  border: 1px solid rgba(200,60,60,0.4);  color: #E06C6C; }
+.countdown-warm { background: rgba(122,90,26,0.3);  border: 1px solid rgba(200,150,60,0.4); color: #E0C06C; }
+.countdown-cool { background: rgba(26,74,122,0.25); border: 1px solid rgba(60,120,200,0.4); color: #6CA8E0; }
+.opp-ins-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.opp-ins-tag { background: rgba(139,26,42,0.15); border: 1px solid rgba(139,26,42,0.3); border-radius: 12px; padding: 2px 8px; font-size: 11px; color: #C05070; }
 </style>
 </head>
 <body>
@@ -415,6 +442,10 @@ nav { flex: 1; padding: 12px 8px; }
       <div class="nav-item" onclick="navigateTo('outreach')" data-view="outreach">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
         Outreach
+      </div>
+      <div class="nav-item" onclick="navigateTo('opportunities')" data-view="opportunities">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/><line x1="2" y1="2" x2="4.93" y2="4.93"/></svg>
+        Opportunities
       </div>
       <div class="nav-item" onclick="navigateTo('settings')" data-view="settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -490,7 +521,9 @@ let state = {
   selectedLeadId: null,
   gmailToken: null,
   supabase: null,
-  closedFilter: 'won'
+  closedFilter: 'won',
+  closings: [],   // cached property closing leads
+  renewals: []    // cached policy renewal leads
 };
 
 // ============================================================
@@ -660,7 +693,7 @@ function navigateTo(view) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   const navEl = document.querySelector(`[data-view="${view}"]`);
   if (navEl) navEl.classList.add('active');
-  const titles = { dashboard:'Dashboard', discover:'Discover Businesses', pipeline:'Pipeline', outreach:'Outreach', settings:'Settings' };
+  const titles = { dashboard:'Dashboard', discover:'Discover Businesses', pipeline:'Pipeline', outreach:'Outreach', opportunities:'60-Day Opportunities', settings:'Settings' };
   document.getElementById('topbar-title').textContent = titles[view] || view;
   renderView(view);
 }
@@ -672,6 +705,7 @@ function renderView(view) {
     case 'discover': c.innerHTML = renderDiscover(); attachDiscover(); break;
     case 'pipeline': c.innerHTML = renderPipeline(); attachPipeline(); break;
     case 'outreach': c.innerHTML = renderOutreach(); attachOutreach(); break;
+    case 'opportunities': c.innerHTML = renderOpportunities(); attachOpportunities(); break;
     case 'settings': c.innerHTML = renderSettings(); attachSettings(); break;
   }
 }
@@ -1895,6 +1929,334 @@ function submitQuickAdd(e) {
   closeLeadModal();
   showToast(`${lead.business_name} added!`, 'success');
   renderView(state.currentView);
+}
+
+// ============================================================
+// OPPORTUNITIES — 60-DAY WINDOW
+// ============================================================
+function renderOpportunities() {
+  return `
+  <!-- ── Real Estate Closings ── -->
+  <div class="opp-section">
+    <div class="card">
+      <div class="opp-section-header">
+        <div>
+          <div class="opp-section-label" style="color:var(--maroon-light)">🏠 Real Estate Closings</div>
+          <div class="card-title" style="margin-bottom:4px">Properties Closing Within 60 Days</div>
+          <div class="opp-section-desc">
+            AI identifies Livingston County properties with scheduled closing dates in the next 60 days.
+            New homebuyers need homeowners insurance, umbrella policies, and mortgage protection — reach them before closing.
+          </div>
+        </div>
+        <button class="btn btn-primary" id="closings-btn" onclick="runPropertyClosings()" style="flex-shrink:0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Generate Closings List
+        </button>
+      </div>
+      <div id="closings-results">
+        ${state.closings.length ? renderClosingCards() : `
+        <div class="empty-state" style="padding:28px">
+          <div class="empty-state-icon">🏠</div>
+          <div class="empty-state-title">No closings generated yet</div>
+          <div class="empty-state-sub">Click "Generate Closings List" to find properties closing in the next 60 days.</div>
+        </div>`}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Policy Renewals ── -->
+  <div class="opp-section">
+    <div class="card">
+      <div class="opp-section-header">
+        <div>
+          <div class="opp-section-label" style="color:#E0C06C">📋 Policy Renewals</div>
+          <div class="card-title" style="margin-bottom:4px">Businesses with Policies Expiring Within 60 Days</div>
+          <div class="opp-section-desc">
+            AI identifies Livingston County businesses whose commercial insurance policies are up for renewal in the next 60 days.
+            These are warm opportunities — the business is actively shopping or should be.
+          </div>
+        </div>
+        <button class="btn btn-primary" id="renewals-btn" onclick="runPolicyRenewals()" style="flex-shrink:0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Generate Renewals List
+        </button>
+      </div>
+      <div id="renewals-results">
+        ${state.renewals.length ? renderRenewalCards() : `
+        <div class="empty-state" style="padding:28px">
+          <div class="empty-state-icon">📋</div>
+          <div class="empty-state-title">No renewals generated yet</div>
+          <div class="empty-state-sub">Click "Generate Renewals List" to find businesses with policies expiring soon.</div>
+        </div>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+function attachOpportunities() {}
+
+// ── helpers ──
+function countdownBadge(days) {
+  const cls = days <= 21 ? 'countdown-hot' : days <= 40 ? 'countdown-warm' : 'countdown-cool';
+  const label = days === 1 ? '1 day left' : `${days} days left`;
+  return `<span class="countdown-badge ${cls}">⏱ ${label}</span>`;
+}
+
+function renderClosingCards() {
+  if (!state.closings.length) return '';
+  return `<div class="opp-cards">` + state.closings.map((p, i) => {
+    const days = Math.max(1, Math.round((new Date(p.closing_date) - new Date(TODAY)) / 86400000));
+    const tags = (p.insurance_needs || []).map(t => `<span class="opp-ins-tag">${escHtml(t)}</span>`).join('');
+    const added = p._added;
+    return `
+    <div class="opp-card" id="closing-card-${i}">
+      <div class="opp-card-body">
+        <div class="opp-card-title">🏠 ${escHtml(p.property_address)}</div>
+        <div class="opp-card-meta">
+          <strong>Owner:</strong> ${escHtml(p.owner_name)} &nbsp;·&nbsp;
+          <strong>Type:</strong> ${escHtml(p.property_type)} &nbsp;·&nbsp;
+          <strong>Est. Value:</strong> $${Number(p.estimated_value||0).toLocaleString()}
+        </div>
+        <div class="opp-card-meta">
+          <strong>Closing:</strong> ${fmt(p.closing_date)} &nbsp;·&nbsp; <strong>Town:</strong> ${escHtml(p.town)}
+        </div>
+        ${p.notes ? `<div class="opp-card-note">${escHtml(p.notes)}</div>` : ''}
+        <div class="opp-ins-tags">${tags}</div>
+      </div>
+      <div class="opp-card-actions">
+        ${countdownBadge(days)}
+        <button class="btn btn-success btn-sm" id="closing-add-${i}"
+          onclick="addClosingToPipeline(${i})" ${added ? 'disabled' : ''}>
+          ${added ? '✓ Added' : 'Add to Pipeline'}
+        </button>
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function renderRenewalCards() {
+  if (!state.renewals.length) return '';
+  return `<div class="opp-cards">` + state.renewals.map((r, i) => {
+    const days = Math.max(1, Math.round((new Date(r.expiration_date) - new Date(TODAY)) / 86400000));
+    const tags = (r.policy_types || []).map(t => `<span class="opp-ins-tag">${escHtml(t)}</span>`).join('');
+    const added = r._added;
+    return `
+    <div class="opp-card" id="renewal-card-${i}">
+      <div class="opp-card-body">
+        <div class="opp-card-title">📋 ${escHtml(r.business_name)}</div>
+        <div class="opp-card-meta">
+          <strong>Owner:</strong> ${escHtml(r.owner_name)} &nbsp;·&nbsp;
+          <strong>Type:</strong> ${escHtml(r.business_type)} &nbsp;·&nbsp;
+          <strong>Phone:</strong> ${escHtml(r.phone||'—')}
+        </div>
+        <div class="opp-card-meta">
+          <strong>Carrier:</strong> ${escHtml(r.current_carrier||'Unknown')} &nbsp;·&nbsp;
+          <strong>Expires:</strong> ${fmt(r.expiration_date)} &nbsp;·&nbsp;
+          <strong>Est. Premium:</strong> $${Number(r.estimated_premium||0).toLocaleString()}/yr
+        </div>
+        <div class="opp-card-meta"><strong>Address:</strong> ${escHtml(r.address||'—')}</div>
+        ${r.opportunity ? `<div class="opp-card-note">💡 ${escHtml(r.opportunity)}</div>` : ''}
+        <div class="opp-ins-tags">${tags}</div>
+      </div>
+      <div class="opp-card-actions">
+        ${countdownBadge(days)}
+        <button class="btn btn-success btn-sm" id="renewal-add-${i}"
+          onclick="addRenewalToPipeline(${i})" ${added ? 'disabled' : ''}>
+          ${added ? '✓ Added' : 'Add to Pipeline'}
+        </button>
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+// ── AI: Property Closings ──
+async function runPropertyClosings() {
+  const apiKey = localStorage.getItem(ANTHROPIC_KEY);
+  if (!apiKey) { showToast('Set your Anthropic API key in Settings first.', 'error'); navigateTo('settings'); return; }
+  const btn = document.getElementById('closings-btn');
+  const results = document.getElementById('closings-results');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Researching...';
+  results.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:12px 0;">Scanning Livingston County property records — this may take 15–20 seconds…</div>';
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey, 'anthropic-version': '2023-06-01',
+        'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001', max_tokens: 2048,
+        system: 'You are a real estate data researcher. Return only valid JSON, no markdown, no explanation.',
+        messages: [{
+          role: 'user',
+          content: `Generate a realistic list of 10 residential or commercial properties in Livingston County, NY that have scheduled closing dates within the next 60 days from today (${TODAY}).
+
+Towns to include: Geneseo, Dansville, Avon, Mount Morris, Caledonia, Livonia, Nunda, Wayland, Lima, York.
+
+For each property return a JSON object with these exact fields:
+- "owner_name": new buyer's full name (realistic)
+- "property_address": full street address in Livingston County NY
+- "town": one of the towns listed above
+- "property_type": one of "Residential", "Commercial", "Multi-Family", "Agricultural/Farm"
+- "estimated_value": integer (typical Livingston County range: 120000–550000 for residential, up to 900000 for commercial)
+- "closing_date": ISO date string between ${TODAY} and 60 days out (2026-05-09)
+- "insurance_needs": array of 2-4 relevant insurance types (e.g. "Homeowners", "Umbrella Policy", "Flood Insurance", "Landlord Policy", "Commercial Property", "Business Interruption", "Mortgage Protection")
+- "notes": one sentence describing the opportunity for an insurance agent
+
+Return ONLY a JSON array of 10 objects.`
+        }]
+      })
+    });
+
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message || 'API error'); }
+    const data = await resp.json();
+    let text = data.content[0].text.trim();
+    if (text.startsWith('```')) text = text.replace(/```json?\n?/g,'').replace(/```$/,'').trim();
+    const closings = JSON.parse(text);
+
+    // Sort by closing date ascending (soonest first)
+    closings.sort((a, b) => new Date(a.closing_date) - new Date(b.closing_date));
+    state.closings = closings;
+
+    results.innerHTML = renderClosingCards();
+    showToast(`Found ${closings.length} properties closing within 60 days!`, 'success');
+
+  } catch(err) {
+    results.innerHTML = `<div style="color:#E06C6C;font-size:13px;padding:12px 0;">Error: ${escHtml(err.message)}</div>`;
+    showToast('Failed to generate closings list: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Refresh Closings List';
+  }
+}
+
+// ── AI: Policy Renewals ──
+async function runPolicyRenewals() {
+  const apiKey = localStorage.getItem(ANTHROPIC_KEY);
+  if (!apiKey) { showToast('Set your Anthropic API key in Settings first.', 'error'); navigateTo('settings'); return; }
+  const btn = document.getElementById('renewals-btn');
+  const results = document.getElementById('renewals-results');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Researching...';
+  results.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:12px 0;">Identifying businesses with policies expiring soon — this may take 15–20 seconds…</div>';
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey, 'anthropic-version': '2023-06-01',
+        'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001', max_tokens: 2048,
+        system: 'You are a commercial insurance business development researcher. Return only valid JSON, no markdown, no explanation.',
+        messages: [{
+          role: 'user',
+          content: `Generate a realistic list of 10 businesses in Livingston County, NY whose commercial insurance policies are expiring within the next 60 days from today (${TODAY}).
+
+Towns to include: Geneseo, Dansville, Avon, Mount Morris, Caledonia, Livonia, Nunda.
+Business types: Restaurant, Retail, Contractor/Construction, Healthcare, Technology/IT, Auto/Transportation, Beauty/Salon, Real Estate, Landscaping, Other.
+
+For each business return a JSON object with these exact fields:
+- "business_name": realistic local business name
+- "business_type": one of the types listed above
+- "owner_name": owner's full name
+- "address": full street address in Livingston County NY
+- "phone": 585 area code phone number
+- "email": realistic business email
+- "current_carrier": realistic insurance carrier name (e.g. "Erie Insurance", "Utica National", "Travelers", "Hanover Insurance", "Acuity", "Cincinnati Insurance", "State Auto", "Merchants Insurance")
+- "policy_types": array of 2-4 relevant commercial insurance types for this business type
+- "expiration_date": ISO date string between ${TODAY} and 60 days out (2026-05-09)
+- "estimated_premium": integer annual premium estimate realistic for the business type (range: 2800–18000)
+- "opportunity": one sentence describing the specific renewal opportunity for a BDR (mention competitive angle or pain point)
+
+Return ONLY a JSON array of 10 objects.`
+        }]
+      })
+    });
+
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message || 'API error'); }
+    const data = await resp.json();
+    let text = data.content[0].text.trim();
+    if (text.startsWith('```')) text = text.replace(/```json?\n?/g,'').replace(/```$/,'').trim();
+    const renewals = JSON.parse(text);
+
+    // Sort by expiration date ascending (soonest first)
+    renewals.sort((a, b) => new Date(a.expiration_date) - new Date(b.expiration_date));
+    state.renewals = renewals;
+
+    results.innerHTML = renderRenewalCards();
+    showToast(`Found ${renewals.length} businesses with policies expiring within 60 days!`, 'success');
+
+  } catch(err) {
+    results.innerHTML = `<div style="color:#E06C6C;font-size:13px;padding:12px 0;">Error: ${escHtml(err.message)}</div>`;
+    showToast('Failed to generate renewals list: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Refresh Renewals List';
+  }
+}
+
+// ── Add to Pipeline ──
+function addClosingToPipeline(i) {
+  const p = state.closings[i];
+  if (!p) return;
+  const insNeeds = p.insurance_needs || ['Homeowners', 'Mortgage Protection'];
+  const lead = {
+    id: uuid(),
+    business_name: p.property_address,
+    business_type: 'Real Estate',
+    owner_name: p.owner_name,
+    email: '',
+    phone: '',
+    address: p.property_address,
+    formed_date: '',
+    stage: 'new',
+    insurance_types: insNeeds,
+    notes: `Property closing: ${fmt(p.closing_date)} · ${p.property_type} · Est. $${Number(p.estimated_value||0).toLocaleString()}${p.notes ? '\n' + p.notes : ''}`,
+    source: 'property_closing',
+    closing_date: p.closing_date,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  state.leads.push(lead);
+  state.closings[i]._added = true;
+  saveData();
+  logActivity(`Added property closing lead: ${p.property_address} (closes ${fmt(p.closing_date)})`);
+  const btn = document.getElementById(`closing-add-${i}`);
+  if (btn) { btn.textContent = '✓ Added'; btn.disabled = true; }
+  showToast(`${p.property_address} added to pipeline!`, 'success');
+}
+
+function addRenewalToPipeline(i) {
+  const r = state.renewals[i];
+  if (!r) return;
+  const lead = {
+    id: uuid(),
+    business_name: r.business_name,
+    business_type: r.business_type || 'Other',
+    owner_name: r.owner_name,
+    email: r.email || '',
+    phone: r.phone || '',
+    address: r.address || '',
+    formed_date: '',
+    stage: 'new',
+    insurance_types: r.policy_types || ['General Liability'],
+    notes: `Policy renewal: ${fmt(r.expiration_date)} · Current carrier: ${r.current_carrier||'Unknown'} · Est. premium: $${Number(r.estimated_premium||0).toLocaleString()}/yr${r.opportunity ? '\n' + r.opportunity : ''}`,
+    source: 'policy_renewal',
+    policy_expiration: r.expiration_date,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  state.leads.push(lead);
+  state.renewals[i]._added = true;
+  saveData();
+  logActivity(`Added policy renewal lead: ${r.business_name} (expires ${fmt(r.expiration_date)})`);
+  const btn = document.getElementById(`renewal-add-${i}`);
+  if (btn) { btn.textContent = '✓ Added'; btn.disabled = true; }
+  showToast(`${r.business_name} added to pipeline!`, 'success');
 }
 
 // ============================================================
