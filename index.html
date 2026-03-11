@@ -2004,7 +2004,14 @@ function countdownBadge(days) {
 
 function renderClosingCards() {
   if (!state.closings.length) return '';
-  return `<div class="opp-cards">` + state.closings.map((p, i) => {
+  return `
+  <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+    <button class="btn btn-secondary btn-sm" onclick="exportClosingsCSV()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export CSV
+    </button>
+  </div>
+  <div class="opp-cards">` + state.closings.map((p, i) => {
     const days = Math.max(1, Math.round((new Date(p.closing_date) - new Date(TODAY)) / 86400000));
     const tags = (p.insurance_needs || []).map(t => `<span class="opp-ins-tag">${escHtml(t)}</span>`).join('');
     const added = p._added;
@@ -2036,7 +2043,14 @@ function renderClosingCards() {
 
 function renderRenewalCards() {
   if (!state.renewals.length) return '';
-  return `<div class="opp-cards">` + state.renewals.map((r, i) => {
+  return `
+  <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+    <button class="btn btn-secondary btn-sm" onclick="exportRenewalsCSV()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export CSV
+    </button>
+  </div>
+  <div class="opp-cards">` + state.renewals.map((r, i) => {
     const days = Math.max(1, Math.round((new Date(r.expiration_date) - new Date(TODAY)) / 86400000));
     const tags = (r.policy_types || []).map(t => `<span class="opp-ins-tag">${escHtml(t)}</span>`).join('');
     const added = r._added;
@@ -2197,6 +2211,52 @@ Return ONLY a JSON array of 10 objects.`
     btn.disabled = false;
     btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Refresh Renewals List';
   }
+}
+
+// ── CSV Export ──
+function csvEscape(v) {
+  const s = String(v == null ? '' : v);
+  return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s;
+}
+
+function downloadCSV(filename, rows) {
+  const csv = rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportClosingsCSV() {
+  if (!state.closings.length) return;
+  const header = ['Owner Name','Property Address','Town','Property Type','Estimated Value','Closing Date','Days Until Closing','Insurance Needs','Notes'];
+  const rows = state.closings.map(p => {
+    const days = Math.max(1, Math.round((new Date(p.closing_date) - new Date(TODAY)) / 86400000));
+    return [
+      p.owner_name, p.property_address, p.town, p.property_type,
+      p.estimated_value, p.closing_date, days,
+      (p.insurance_needs || []).join('; '), p.notes || ''
+    ];
+  });
+  downloadCSV(`findBiz-closings-${TODAY}.csv`, [header, ...rows]);
+  showToast(`Exported ${rows.length} property closings to CSV.`, 'success');
+}
+
+function exportRenewalsCSV() {
+  if (!state.renewals.length) return;
+  const header = ['Business Name','Business Type','Owner Name','Address','Phone','Email','Current Carrier','Policy Types','Expiration Date','Days Until Expiration','Est. Annual Premium','Opportunity'];
+  const rows = state.renewals.map(r => {
+    const days = Math.max(1, Math.round((new Date(r.expiration_date) - new Date(TODAY)) / 86400000));
+    return [
+      r.business_name, r.business_type, r.owner_name, r.address,
+      r.phone, r.email, r.current_carrier,
+      (r.policy_types || []).join('; '), r.expiration_date, days,
+      r.estimated_premium, r.opportunity || ''
+    ];
+  });
+  downloadCSV(`findBiz-renewals-${TODAY}.csv`, [header, ...rows]);
+  showToast(`Exported ${rows.length} policy renewals to CSV.`, 'success');
 }
 
 // ── Add to Pipeline ──
