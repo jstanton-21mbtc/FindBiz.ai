@@ -958,9 +958,7 @@ async function runOpenCorporatesResearch() {
         current_status: 'Active',
         ...(ocToken ? { api_token: ocToken } : {})
       });
-      const resp = await fetch(`https://api.opencorporates.com/v0.4/companies/search?${params}`, {
-        headers: { 'Accept': 'application/json' }
-      });
+      const resp = await fetch(`/.netlify/functions/oc-proxy?${params}`);
       if (!resp.ok) {
         const errData = await resp.json().catch(() => ({}));
         throw new Error(errData.error?.message || `OpenCorporates API error ${resp.status}`);
