@@ -955,15 +955,11 @@ async function runOpenCorporatesResearch() {
         incorporation_date_to: dateTo,
         per_page: '30',
         page: String(page),
-        current_status: 'Active',
         ...(ocToken ? { api_token: ocToken } : {})
       });
       const resp = await fetch(`/.netlify/functions/oc-proxy?${params}`);
-      if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({}));
-        throw new Error(errData.error?.message || `OpenCorporates API error ${resp.status}`);
-      }
       const data = await resp.json();
+      if (!resp.ok || data.error) throw new Error(data.error?.message || data.error || `OpenCorporates error ${resp.status}`);
       const page_companies = (data.results?.companies || []).map(c => c.company);
       allCompanies.push(...page_companies);
       if (page_companies.length < 30) break;
