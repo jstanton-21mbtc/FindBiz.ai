@@ -516,6 +516,7 @@ const PW_KEY = 'findbiz_pw_v1';
 const DATA_KEY = 'findbiz_data_v1';
 const SETTINGS_KEY = 'findbiz_settings_v1';
 const ANTHROPIC_KEY = 'findbiz_anthropic_key_v1';
+const OC_TOKEN_KEY = 'findbiz_oc_token_v1';
 const GMAIL_TOKEN_KEY = 'findbiz_gmail_token_v1';
 const TODAY = '2026-03-10';
 
@@ -843,12 +844,12 @@ function renderDiscover() {
     <div class="card">
       <div class="section-header">
         <div>
-          <div class="card-title">Generate AI Research Brief</div>
-          <div class="card-subtitle">Claude AI will suggest 10 newly-formed business types common in Livingston County, NY with example leads ready to add to your pipeline.</div>
+          <div class="card-title">Search Real NY Business Filings</div>
+          <div class="card-subtitle">Live data from OpenCorporates (NY DOS public records) — businesses incorporated in the last 90 days, filtered for Livingston County. Claude AI analyzes insurance needs.</div>
         </div>
-        <button class="btn btn-primary" id="ai-research-btn" onclick="runAIResearch()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          Generate AI Research Brief
+        <button class="btn btn-primary" id="ai-research-btn" onclick="runOpenCorporatesResearch()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Search NY Filings
         </button>
       </div>
       <div id="ai-research-results"></div>
@@ -928,72 +929,137 @@ function renderDiscover() {
 
 function attachDiscover() {}
 
-async function runAIResearch() {
+const LIVINGSTON_CITIES = ['geneseo','dansville','avon','mount morris','caledonia','lima','nunda','york','leicester','conesus','livonia','wayland','groveland','springwater','sparta','ossian','portage','west sparta'];
+
+async function runOpenCorporatesResearch() {
   const apiKey = localStorage.getItem(ANTHROPIC_KEY);
-  if (!apiKey) {
-    showToast('Set your Anthropic API key in Settings first.', 'error');
-    navigateTo('settings');
-    return;
-  }
+  const ocToken = localStorage.getItem(OC_TOKEN_KEY) || '';
   const btn = document.getElementById('ai-research-btn');
   const results = document.getElementById('ai-research-results');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Researching...';
-  results.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:12px 0;">Calling Claude AI — this may take 10–20 seconds...</div>';
+  btn.innerHTML = '<span class="spinner"></span> Searching NY Filings...';
+  results.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:12px 0;">Querying OpenCorporates — NY DOS public records...</div>';
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2048,
-        system: 'You are a business development researcher. Return only valid JSON, no markdown, no explanation.',
-        messages: [{
-          role: 'user',
-          content: `List 10 types of newly formed businesses that commonly appear in Livingston County, NY. For each, provide: business_name (a realistic example name), business_type (one of: Restaurant, Retail, Contractor/Construction, Healthcare, Technology/IT, Auto/Transportation, Beauty/Salon, Real Estate, Landscaping, Other), owner_name (realistic), email (realistic example), phone (585 area code), address (Geneseo, Dansville, Avon, or Mount Morris NY), formed_date (within last 90 days from today 2026-03-10, format YYYY-MM-DD), insurance_types (array of 2-4 relevant types). Return ONLY a JSON array.`
-        }]
-      })
-    });
+    const today = new Date();
+    const ninetyDaysAgo = new Date(today - 90 * 24 * 60 * 60 * 1000);
+    const dateFrom = ninetyDaysAgo.toISOString().split('T')[0];
+    const dateTo = today.toISOString().split('T')[0];
 
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error?.message || 'API error');
+    // Fetch up to 3 pages of recent NY incorporations
+    let allCompanies = [];
+    for (let page = 1; page <= 3; page++) {
+      const params = new URLSearchParams({
+        jurisdiction_code: 'us_ny',
+        incorporation_date_from: dateFrom,
+        incorporation_date_to: dateTo,
+        per_page: '30',
+        page: String(page),
+        current_status: 'Active',
+        ...(ocToken ? { api_token: ocToken } : {})
+      });
+      const resp = await fetch(`https://api.opencorporates.com/v0.4/companies/search?${params}`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(errData.error?.message || `OpenCorporates API error ${resp.status}`);
+      }
+      const data = await resp.json();
+      const page_companies = (data.results?.companies || []).map(c => c.company);
+      allCompanies.push(...page_companies);
+      if (page_companies.length < 30) break;
     }
 
-    const data = await resp.json();
-    let text = data.content[0].text.trim();
-    if (text.startsWith('```')) text = text.replace(/```json?\n?/g,'').replace(/```$/,'').trim();
-    const businesses = JSON.parse(text);
+    if (!allCompanies.length) throw new Error('No results returned from OpenCorporates. Try adding an API token in Settings.');
 
-    results.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">` +
-      businesses.map((b, i) => `
+    // Filter for Livingston County cities
+    const filtered = allCompanies.filter(c => {
+      const locality = (c.registered_address?.locality || '').toLowerCase();
+      return LIVINGSTON_CITIES.some(city => locality.includes(city));
+    });
+
+    const useFiltered = filtered.length >= 3;
+    const businesses = useFiltered ? filtered : allCompanies.slice(0, 20);
+    const locationNote = useFiltered
+      ? `${filtered.length} Livingston County businesses found`
+      : `${businesses.length} recent NY businesses (no Livingston County matches — verify addresses manually)`;
+
+    // Use Claude to analyze insurance needs if API key available
+    let enriched = businesses.map(b => ({ ...b, business_type: 'Other', insurance_types: [] }));
+    if (apiKey && businesses.length) {
+      results.innerHTML = `<div style="color:var(--text-2);font-size:13px;padding:12px 0;">Found ${businesses.length} filings. Having Claude analyze insurance needs...</div>`;
+      try {
+        const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 2048,
+            system: 'You are an insurance BDR analyst. Return only valid JSON array, no markdown.',
+            messages: [{
+              role: 'user',
+              content: `For each business name below, return a JSON array (same order) where each item has: business_type (one of: Restaurant, Retail, Contractor/Construction, Healthcare, Technology/IT, Auto/Transportation, Beauty/Salon, Real Estate, Landscaping, Other) and insurance_types (array of 2-4 relevant insurance products).\n\n${businesses.map((b,i) => `${i+1}. ${b.name}`).join('\n')}`
+            }]
+          })
+        });
+        if (aiResp.ok) {
+          const aiData = await aiResp.json();
+          let aiText = aiData.content[0].text.trim();
+          if (aiText.startsWith('```')) aiText = aiText.replace(/```json?\n?/g,'').replace(/```$/,'').trim();
+          const aiResults = JSON.parse(aiText);
+          enriched = businesses.map((b, i) => ({
+            ...b,
+            business_type: aiResults[i]?.business_type || 'Other',
+            insurance_types: aiResults[i]?.insurance_types || []
+          }));
+        }
+      } catch(e) { /* Claude enrichment failed — show without insurance tags */ }
+    }
+
+    window._aiResearchResults = enriched.map(b => ({
+      business_name: b.name,
+      business_type: b.business_type || 'Other',
+      owner_name: '',
+      email: '',
+      phone: '',
+      address: [b.registered_address?.street_address, b.registered_address?.locality, b.registered_address?.region].filter(Boolean).join(', '),
+      formed_date: b.incorporation_date,
+      insurance_types: b.insurance_types || [],
+      opencorporates_url: b.opencorporates_url || ''
+    }));
+
+    results.innerHTML =
+      `<div style="font-size:12px;color:var(--text-2);margin-bottom:12px;padding:8px 12px;background:rgba(139,26,42,0.08);border-radius:6px;border:1px solid rgba(139,26,42,0.2);">
+        ✓ ${locationNote} · Source: OpenCorporates / NY DOS · Incorporated ${dateFrom} – ${dateTo}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">` +
+      window._aiResearchResults.map((b, i) => `
         <div class="discover-result-card" id="ai-card-${i}">
           <div style="flex:1">
             <div class="discover-biz-name">${escHtml(b.business_name)}</div>
-            <div class="discover-meta">${escHtml(b.business_type)} · ${escHtml(b.owner_name)} · ${escHtml(b.address)}</div>
-            <div class="discover-meta">${escHtml(b.email)} · ${escHtml(b.phone)}</div>
-            <div class="discover-meta">Formed: ${fmt(b.formed_date)}</div>
-            <div class="insurance-tags">${(b.insurance_types||[]).map(t=>`<span class="insurance-tag">${escHtml(t)}</span>`).join('')}</div>
+            <div class="discover-meta">${escHtml(b.business_type)}${b.address ? ' · ' + escHtml(b.address) : ''}</div>
+            <div class="discover-meta">Formed: ${fmt(b.formed_date)}${b.opencorporates_url ? ` · <a href="${escHtml(b.opencorporates_url)}" target="_blank" style="color:var(--maroon-light);text-decoration:none;">View Filing ↗</a>` : ''}</div>
+            ${b.insurance_types.length ? `<div class="insurance-tags">${b.insurance_types.map(t=>`<span class="insurance-tag">${escHtml(t)}</span>`).join('')}</div>` : ''}
+            <div style="font-size:11px;color:var(--text-3);margin-top:5px;">📞 Research contact info via Google, LinkedIn, or NY SOS filing</div>
           </div>
           <button class="btn btn-success btn-sm" onclick="addAILeadToPipeline(${i})" id="ai-add-btn-${i}">Add to Pipeline</button>
         </div>`).join('') +
       '</div>';
 
-    window._aiResearchResults = businesses;
-    showToast(`Found ${businesses.length} business leads!`, 'success');
+    showToast(`${enriched.length} real NY filings loaded!`, 'success');
 
   } catch(err) {
-    results.innerHTML = `<div style="color:#E06C6C;font-size:13px;padding:12px 0;">Error: ${escHtml(err.message)}</div>`;
-    showToast('AI research failed: ' + err.message, 'error');
+    results.innerHTML = `<div style="color:#E06C6C;font-size:13px;padding:12px 0;"><strong>Error:</strong> ${escHtml(err.message)}</div>`;
+    showToast('Search failed: ' + err.message, 'error');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generate AI Research Brief';
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Search NY Filings';
   }
 }
 
@@ -1545,6 +1611,19 @@ CREATE TABLE outreach_log (
       </div>
     </div>
 
+    <!-- OpenCorporates -->
+    <div class="card">
+      <div class="card-title">OpenCorporates</div>
+      <div class="card-subtitle">API token for NY business filing search. Free tier works without a token but has rate limits. Get a free token at <a href="https://opencorporates.com/api_accounts/new" target="_blank" style="color:var(--maroon-light)">opencorporates.com</a>.</div>
+      <div class="form-group">
+        <label class="form-label">API Token <span style="font-size:11px;color:var(--text-3)">(optional)</span></label>
+        <div class="api-key-row">
+          <input class="form-input" id="s-oc-token" type="password" value="${escHtml(localStorage.getItem(OC_TOKEN_KEY)||'')}" placeholder="your-opencorporates-token" />
+          <button class="btn btn-primary" onclick="saveOcToken()">Save</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Gmail -->
     <div class="card">
       <div class="card-title">Gmail Integration</div>
@@ -1658,6 +1737,13 @@ function saveAnthropicKey() {
   if (!k) { showToast('Enter an API key.', 'error'); return; }
   localStorage.setItem(ANTHROPIC_KEY, k);
   showToast('API key saved!', 'success');
+}
+
+function saveOcToken() {
+  const k = document.getElementById('s-oc-token')?.value.trim() || '';
+  if (k) localStorage.setItem(OC_TOKEN_KEY, k);
+  else localStorage.removeItem(OC_TOKEN_KEY);
+  showToast(k ? 'OpenCorporates token saved!' : 'Token cleared.', 'success');
 }
 
 function saveCalendly() {
