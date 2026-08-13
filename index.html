@@ -408,7 +408,14 @@ nav { flex: 1; padding: 12px 8px; }
       <input type="password" id="login-pw-input" placeholder="Enter password" autocomplete="current-password" />
       <button class="btn btn-primary" onclick="handleLogin()">Login</button>
     </div>
+    <div id="login-reset-form" style="display:none;">
+      <input type="password" id="login-new-pw" placeholder="New password" style="margin-bottom:8px;" />
+      <input type="password" id="login-conf-pw" placeholder="Confirm new password" />
+      <button class="btn btn-primary" onclick="handleLoginReset()" style="margin-top:8px;">Set New Password</button>
+      <button class="btn" onclick="toggleLoginReset()" style="width:100%;margin-top:6px;">Cancel</button>
+    </div>
     <p class="login-hint" id="login-hint">First time? Enter a password to set it.</p>
+    <p style="text-align:center;margin-top:10px;"><a href="#" onclick="toggleLoginReset();return false;" id="login-reset-link" style="font-size:12px;color:var(--maroon);text-decoration:none;display:none;">Forgot password? Reset it</a></p>
   </div>
 </div>
 
@@ -662,12 +669,36 @@ function handleLogin() {
   }
 }
 
+function toggleLoginReset() {
+  const form = document.getElementById('login-form');
+  const reset = document.getElementById('login-reset-form');
+  const showing = reset.style.display !== 'none';
+  form.style.display = showing ? '' : 'none';
+  reset.style.display = showing ? 'none' : '';
+  document.getElementById('login-hint').textContent = showing ? 'Enter your password to continue.' : 'Choose a new password. All existing data will remain.';
+  if (!showing) { document.getElementById('login-new-pw').focus(); }
+}
+
+function handleLoginReset() {
+  const nw = document.getElementById('login-new-pw').value;
+  const conf = document.getElementById('login-conf-pw').value;
+  if (!nw) { showToast('Password cannot be empty.', 'error'); return; }
+  if (nw !== conf) { showToast('Passwords do not match.', 'error'); return; }
+  localStorage.setItem(PW_KEY, btoa(nw));
+  showToast('Password updated! Logging you in…', 'success');
+  document.getElementById('login-new-pw').value = '';
+  document.getElementById('login-conf-pw').value = '';
+  toggleLoginReset();
+  bootApp();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('login-pw-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') handleLogin();
   });
   if (localStorage.getItem(PW_KEY)) {
     document.getElementById('login-hint').textContent = 'Enter your password to continue.';
+    document.getElementById('login-reset-link').style.display = 'inline';
   }
 });
 
