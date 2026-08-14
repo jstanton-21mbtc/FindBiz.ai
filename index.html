@@ -959,7 +959,11 @@ async function runOpenCorporatesResearch() {
       });
       const resp = await fetch(`/.netlify/functions/oc-proxy?${params}`);
       const data = await resp.json();
-      if (!resp.ok || data.error) throw new Error(data.error?.message || data.error || `OpenCorporates error ${resp.status}`);
+      if (!resp.ok || data.error) {
+        const msg = data.error?.message || data.error || `OpenCorporates error ${resp.status}`;
+        const isAuth = String(msg).toLowerCase().includes('account') || String(msg).toLowerCase().includes('token') || String(msg).toLowerCase().includes('unauthori') || resp.status === 401 || resp.status === 403;
+        throw Object.assign(new Error(msg), { isAuth });
+      }
       const page_companies = (data.results?.companies || []).map(c => c.company);
       allCompanies.push(...page_companies);
       if (page_companies.length < 30) break;
@@ -1049,7 +1053,10 @@ async function runOpenCorporatesResearch() {
     showToast(`${enriched.length} real NY filings loaded!`, 'success');
 
   } catch(err) {
-    results.innerHTML = `<div style="color:#E06C6C;font-size:13px;padding:12px 0;"><strong>Error:</strong> ${escHtml(err.message)}</div>`;
+    const authHelp = err.isAuth
+      ? `<br><span style="font-size:12px;color:var(--text-2);">Your API token is invalid or expired. Go to <strong>Settings → OpenCorporates</strong> and update your token, or clear it to try the free tier. Get a valid token at <a href="https://opencorporates.com/api_accounts/new" target="_blank" style="color:var(--maroon-light);">opencorporates.com</a>.</span>`
+      : '';
+    results.innerHTML = `<div style="color:#E06C6C;font-size:13px;padding:12px 0;"><strong>Error:</strong> ${escHtml(err.message)}${authHelp}</div>`;
     showToast('Search failed: ' + err.message, 'error');
   } finally {
     btn.disabled = false;
@@ -1614,7 +1621,9 @@ CREATE TABLE outreach_log (
         <div class="api-key-row">
           <input class="form-input" id="s-oc-token" type="password" value="${escHtml(localStorage.getItem(OC_TOKEN_KEY)||'')}" placeholder="your-opencorporates-token" />
           <button class="btn btn-primary" onclick="saveOcToken()">Save</button>
+          <button class="btn btn-secondary" id="oc-test-btn" onclick="testOcToken()">Test</button>
         </div>
+        <div id="oc-test-result" style="font-size:12px;margin-top:6px;"></div>
       </div>
     </div>
 
@@ -1738,6 +1747,36 @@ function saveOcToken() {
   if (k) localStorage.setItem(OC_TOKEN_KEY, k);
   else localStorage.removeItem(OC_TOKEN_KEY);
   showToast(k ? 'OpenCorporates token saved!' : 'Token cleared.', 'success');
+}
+
+async function testOcToken() {
+  const btn = document.getElementById('oc-test-btn');
+  const resultEl = document.getElementById('oc-test-result');
+  const token = document.getElementById('s-oc-token')?.value.trim() || localStorage.getItem(OC_TOKEN_KEY) || '';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  resultEl.innerHTML = '';
+  try {
+    const params = new URLSearchParams({ jurisdiction_code: 'us_ny', per_page: '1', page: '1' });
+    if (token) params.set('api_token', token);
+    const resp = await fetch(`/.netlify/functions/oc-proxy?${params}`);
+    const data = await resp.json();
+    if (!resp.ok || data.error) {
+      const msg = data.error?.message || data.error || `HTTP ${resp.status}`;
+      resultEl.innerHTML = `<span style="color:#E06C6C;">✗ Failed: ${escHtml(msg)}</span>`;
+      if (msg.toLowerCase().includes('account') || msg.toLowerCase().includes('token') || msg.toLowerCase().includes('unauthori')) {
+        resultEl.innerHTML += `<br><span style="color:var(--text-3);">Token is invalid or expired. Get a new one at <a href="https://opencorporates.com/api_accounts/new" target="_blank" style="color:var(--maroon-light);">opencorporates.com</a>.</span>`;
+      }
+    } else {
+      const count = data.results?.total_count ?? '?';
+      resultEl.innerHTML = `<span style="color:#4CAF82;">✓ Connected — ${count.toLocaleString()} NY companies in database</span>`;
+    }
+  } catch(e) {
+    resultEl.innerHTML = `<span style="color:#E06C6C;">✗ Network error: ${escHtml(e.message)}</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Test';
+  }
 }
 
 function saveCalendly() {
